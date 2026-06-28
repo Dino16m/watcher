@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import shutil
 import logging
+from typing import Optional
 
 from lib import exc
 from lib.agent import Agent
@@ -10,8 +11,42 @@ logger = logging.getLogger(__name__)
 
 
 class Sanitizer:
-    def __init__(self, agent: Agent):
+
+    def __init__(self, agent: Agent, removable_files: Optional[list[str]] = None):
         self._agent = agent
+        self._removable_files = removable_files or []
+
+    def _is_removable_file(self, file_name: str):
+        for removable in self._removable_files:
+            if file_name.endswith(removable):
+                return True
+        return False
+
+    def clean_empty_dirs(self, target_root: str, file: str):
+        path = Path(file)
+        parent = path.parent
+        logger.info(f"Parent is {str(parent)}")
+        while str(parent) != target_root:
+            contents = [
+                content
+                for content in parent.rglob("*")
+                if content.is_dir() or not self._is_removable_file(content.name)
+            ]
+            if len(contents) != 0:
+                logger.info(f"{str(parent)} is not empty, skipping")
+                break
+            removable_contents = [
+                content
+                for content in Path(target_root).rglob("*")
+                if content.is_file() and self._is_removable_file(content.name)
+            ]
+            for content in removable_contents:
+                logger.info(f"Removing file {content.name}")
+                content.unlink()
+            next_parent = parent.parent
+            logger.info(f"removing directory {str(parent)}")
+            parent.rmdir()
+            parent = next_parent
 
     def sanitize(self, target_root: str, file: str):
         listing = ", ".join(
@@ -48,5 +83,7 @@ class Sanitizer:
         destination = response.destination
         logger.info(f"Moving file {file} to destination {destination}")
         shutil.move(file, destination)
+
+        self.clean_empty_dirs(target_root, file)
 
         return destination

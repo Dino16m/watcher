@@ -85,6 +85,10 @@ def main():
 
     api_key = os.environ["API_KEY"]
     watch_dir = os.environ["WATCH_DIR"]
+    removable_files_csv = os.environ.get("REMOVABLE_FILES")
+    removable_files = None
+    if removable_files_csv is not None:
+        removable_files = [file.strip() for file in removable_files_csv.split(",")]
     base_url = os.environ.get("BASE_URL", "https://api.deepseek.com")
     agent_model = os.environ.get("AGENT_MODEL", "deepseek-v4-flash")
 
@@ -93,7 +97,9 @@ def main():
         api_key=api_key,
     )
 
-    sanitizer_instance = Sanitizer(Agent(client, agent_model))
+    sanitizer_instance = Sanitizer(
+        Agent(client, agent_model), removable_files=removable_files
+    )
 
     if args.mode == "watch":
         watch(watch_dir, sanitizer_instance)
